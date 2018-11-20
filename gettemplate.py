@@ -26,7 +26,7 @@ def download_artifact(artifact,bucketName):
     s3 = boto3.resource('s3')
     try:
         s3.Bucket(bucketName).download_file(artifact,localZip )
-        #print("File being downloaded")
+        #print("File being downloaded")https://github.com/Cherrygan/template-validation.git
     except Exception as e:
         if e.response['Error']['Code'] =='404':
             print('The artifact does not exist')
@@ -103,7 +103,7 @@ class ValidationTest:
 def is_resource_here(template,resourceType):
     # If any, it returns the list of resources of type resourceType
     result = []
-    found = True
+    found = False
     if "Resources" in template:
         for item in template['Resources']:
             if template['Resources'][item]['Type']:
@@ -165,31 +165,35 @@ def is_private(ipaddress):
 def test_lambda_secgroup_closed(template):
     searchRes = is_resource_here(template,"AWS::Lambda::Function")
     status = True
+    print(searchRes)
     if searchRes[0]:
         for item in searchRes[1]:
             if 'VpcConfig' in template['Resources'][item]['Properties']:
                 lambdaVpc = True
             else:
                 lambdaVpc = False
-            #print(lambdaVpc)
+    
             if lambdaVpc:
-                searchRes = is_resource_here(template,"AWS::EC2::VPC")
+                lambdaRes = is_resource_here(template,"AWS::EC2::VPC")
                 if searchRes[0]:
-                    if is_private(template['Resources'][searchRes[1]]['Properties']['CidrBlock']):
-                        print("Lambda Security Group compliant with LAM-005 ")
-                    else:
-                        print("Lambda Security Group NOT compliant with LAM-005  !!!")
+                    for step in lambdaRes[1]: 
+                        if is_private(template['Resources'][step]['Properties']['CidrBlock']):
+                            print('Lambda Security Group ',item,'compliant with LAM-005 ')
+                            status = True
+                        else:
+                            print('Lambda Security Group for ',item,' NOT compliant with LAM-005  !!!')
                         status = False
+
             else:
-                print("Lambda Security Group NOT compliant with LAM-005 !!!")
+                print("No VPC associated, Lambda Security Group NOT compliant with LAM-005 !!!")
                 status = False
     return status
 
 def run_conformity_tests(templateSet):
     for template in templateSet:
-        test_kms_key_rotation(template)
-        test_bucket_encryption(template)
-        test_lambda_in_vpc(template)
+        #test_kms_key_rotation(template)
+        #test_bucket_encryption(template)
+        #test_lambda_in_vpc(template)
         test_lambda_secgroup_closed(template)
         #test_sns_endpoint_encryption(template)
         #test_permissions_cbsp(template)
