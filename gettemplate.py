@@ -147,7 +147,7 @@ def test_lambda_in_vpc(template):
     searchRes = is_resource_here(template, 'AWS::Lambda::Function')
     status = True
     if searchRes[0]:
-        print(searchRes[1])
+        #print(searchRes[1])
         for item in searchRes[1]:
             if 'VpcConfig' in template['Resources'][item]['Properties']:
                 print(item, "is compliant with  LAM-004")
@@ -165,7 +165,6 @@ def is_private(ipaddress):
 def test_lambda_secgroup_closed(template):
     searchRes = is_resource_here(template,"AWS::Lambda::Function")
     status = True
-    print(searchRes)
     if searchRes[0]:
         for item in searchRes[1]:
             if 'VpcConfig' in template['Resources'][item]['Properties']:
@@ -185,18 +184,60 @@ def test_lambda_secgroup_closed(template):
                         status = False
 
             else:
-                print("No VPC associated, Lambda Security Group NOT compliant with LAM-005 !!!")
+                print("No VPC associated with",item,", Lambda Security Group NOT compliant with LAM-005 !!!")
                 status = False
     return status
 
+def test_sns_endpoint_encryption(template): 
+    searchRes = is_resource_here(template,"AWS::SNS::Subscription")
+    status = True
+    if searchRes[0]:
+        for item in searchRes[1]:
+            if template['Resources'][item]['Properties']['Protocol'] == 'lambda' or template['Resources'][item]['Properties']['Protocol'] == 'https':
+                print('SNS Endpoint secure, compliant with SNS-001')
+            else:
+                print('SNS Endpoint',item,' NOT compliant with SNS-001 ')
+                status =  False
+    else:
+        #print('Does not apply')
+        pass
+    return status
+
+def test_kms_permissions_admin(template):
+    searchRes = is_resource_here(template,'AWS::KMS::Key')
+    adminActions = ['kms:CancelKeyDeletion','kms:Create*','kms:Delete*','kms:Describe*','kms:Disable*','kms:Enable*','kms:Get*','kms:List*','kms:Put*','kms:Revoke*','kms:ScheduleKeyDeletion','kms:TagResource','kms:UntagResource','kms:Update*']
+    usageActions = ['kms:Describe*','kms:Get*','kms:List*']
+    status = True
+    if searchRes[0]:
+        for item in searchRes[1]:
+            adminSection = template['Resources'][item]['Properties']['KeyPolicy']['Statement'][0]
+            principal = adminSection['Principal']['AWS'][0].get('Fn::Sub')
+            # 'aab-administrator'
+            if principal == 'arn:aws:iam::${AWS::AccountId}:root':
+                status = True
+                #check actions for principal
+                if adminSection['Action'] == adminActions:
+                    usageSection = template['Resources'][item]['Properties']['KeyPolicy']['Statement'][1]
+                    if usageActions ==usageSection:
+                        status = True
+                    else:
+                        status = False
+                else:
+                    status = False
+    if status:
+        print("KMS permissions compliant with KMS-003")
+    else:
+        print("KMS permissions NON compliant with KMS-003!!!!")
+    return status 
+
 def run_conformity_tests(templateSet):
     for template in templateSet:
-        #test_kms_key_rotation(template)
-        #test_bucket_encryption(template)
-        #test_lambda_in_vpc(template)
+        test_kms_key_rotation(template)
+        test_bucket_encryption(template)
+        test_lambda_in_vpc(template)
         test_lambda_secgroup_closed(template)
-        #test_sns_endpoint_encryption(template)
-        #test_permissions_cbsp(template)
+        test_sns_endpoint_encryption(template)
+        test_kms_permissions_admin(template)
 
 
 # Run, Forest, run!----------------------------------------
